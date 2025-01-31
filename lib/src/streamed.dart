@@ -73,7 +73,7 @@ Stream<ChatResult> fllamaToLangchainChatStream(List<ChatMessage> input,
   });
 
   // Cancel the request if the stream is closed
-  controller.onCancel = () => fllamaCancelInference(requestId);
+  // controller.onCancel = () => fllamaCancelInference(requestId);
 
   yield* controller.stream.map((content) {
     final toolCalls = <AIChatMessageToolCall>[];
