@@ -1,15 +1,25 @@
 import 'dart:async';
+import 'dart:convert';
 
-import 'package:fllama/fllama_universal.dart';
-import 'package:fllama/misc/openai.dart';
-import 'package:fllama/misc/openai_tool.dart';
+import 'package:fllama/fllama.dart';
 import 'package:langchain_core/chat_models.dart';
+import 'package:langchain_core/language_models.dart';
+import 'package:langchain_core/llms.dart';
 import 'package:langchain_fllama/src/chat_models/chat_models.dart';
+import 'package:langchain_fllama/src/common.dart';
 
-Stream<String> fllamaToLangchainChatStream(List<ChatMessage> input,
+Stream<ChatResult> fllamaToLangchainChatStream(List<ChatMessage> input,
     {required ChatFllamaOptions? options}) async* {
   if (options == null) {
     throw ArgumentError.notNull('options');
+  }
+
+  if (options.toolChoice != null) {
+    throw ArgumentError.value(
+      options.toolChoice,
+      'options.toolChoice',
+      'Tool choice is not supported in Fllama',
+    );
   }
 
   final request = OpenAiRequest(
@@ -26,7 +36,7 @@ Stream<String> fllamaToLangchainChatStream(List<ChatMessage> input,
         Tool(
           name: tool.name,
           description: tool.description,
-          jsonSchema: tool.inputJsonSchema,
+          jsonSchema: jsonEncode(tool.inputJsonSchema),
         ),
     ],
     messages: [
@@ -50,18 +60,72 @@ Stream<String> fllamaToLangchainChatStream(List<ChatMessage> input,
   // Since fllamaInference gives us tokens directly,
   // we can use a broadcast controller to emit them as they come
   final controller = StreamController<String>.broadcast();
-  String streamedText = '';
+  var streamedText = '';
 
-  fllamaChat(request, (response, done) {
-
+  final requestId = await fllamaChat(request, (response, done) {
+    if (done) controller.close();
     final delta = response.substring(streamedText.length);
     streamedText = response;
     controller.add(delta);
-
-    if (done) {
-      controller.close();
-    }
   });
 
-  yield* controller.stream;
+  // Cancel the request if the stream is closed
+  controller.onCancel = () => fllamaCancelInference(requestId);
+
+  yield* controller.stream.map((content) {
+    final toolCalls = <AIChatMessageToolCall>[];
+
+    try {
+      final parsed = jsonDecode(streamedText) as Map<String, dynamic>;
+
+      if (parsed.containsKey('name') && parsed.containsKey('parameters')) {
+        for (final tool in options.tools ?? []) {
+          if (tool.name != parsed['name']) continue;
+
+          toolCalls.add(
+            AIChatMessageToolCall(
+              id: uuid.v4(),
+              name: parsed['name'],
+              argumentsRaw: jsonEncode(parsed['parameters']),
+              arguments: parsed['parameters'],
+            ),
+          );
+          break;
+        }
+      }
+    } catch (e) {}
+
+    return ChatResult(
+      id: uuid.v4(),
+      output: AIChatMessage(
+        content: content,
+        toolCalls: toolCalls,
+      ),
+      finishReason: FinishReason.unspecified,
+      metadata: {
+        'model': options.model,
+        'frequencyPenalty': options.frequencyPenalty,
+        'presencePenalty': options.presencePenalty,
+        'temperature': options.temperature,
+        'topP': options.topP,
+        'numGpuLayers': options.numGpuLayers,
+        'numCtx': options.numCtx,
+        'maxTokens': options.maxTokens,
+      },
+      usage: const LanguageModelUsage(),
+      streaming: true,
+    );
+  });
+}
+
+extension ToLLMResult on ChatResult {
+  LLMResult toLLMResult() {
+    return LLMResult(
+      id: id,
+      output: outputAsString,
+      finishReason: finishReason,
+      metadata: metadata,
+      usage: usage,
+    );
+  }
 }

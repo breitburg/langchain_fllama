@@ -1,12 +1,10 @@
 import 'dart:async';
 
 import 'package:langchain_core/chat_models.dart';
-import 'package:langchain_core/language_models.dart';
 import 'package:langchain_core/prompts.dart';
 import 'package:langchain_fllama/src/chat_models/chat_models.dart';
 import 'package:langchain_fllama/src/streamed.dart';
 import 'package:langchain_tiktoken/langchain_tiktoken.dart';
-import 'package:uuid/uuid.dart';
 
 class ChatFllama extends BaseChatModel<ChatFllamaOptions> {
   ChatFllama({
@@ -25,25 +23,16 @@ class ChatFllama extends BaseChatModel<ChatFllamaOptions> {
   @override
   String get modelType => 'fllama';
 
-  /// A UUID generator.
-  late final Uuid _uuid = const Uuid();
-
   @override
   Future<ChatResult> invoke(
     final PromptValue input, {
     final ChatFllamaOptions? options,
   }) async {
-    return ChatResult(
-      id: _uuid.v4(),
-      output: AIChatMessage(
-        content: await fllamaToLangchainChatStream(
-          input.toChatMessages(),
-          options: options ?? defaultOptions,
-        ).join(),
-      ),
-      finishReason: FinishReason.unspecified,
-      metadata: const {},
-      usage: const LanguageModelUsage(),
+    return await fllamaToLangchainChatStream(
+      input.toChatMessages(),
+      options: options ?? defaultOptions,
+    ).reduce(
+      (previousValue, element) => previousValue.concat(element),
     );
   }
 
@@ -55,14 +44,6 @@ class ChatFllama extends BaseChatModel<ChatFllamaOptions> {
     return fllamaToLangchainChatStream(
       input.toChatMessages(),
       options: options ?? defaultOptions,
-    ).map(
-      (output) => ChatResult(
-        id: _uuid.v4(),
-        output: AIChatMessage(content: output),
-        finishReason: FinishReason.unspecified,
-        metadata: const {},
-        usage: const LanguageModelUsage(),
-      ),
     );
   }
 
@@ -84,10 +65,5 @@ class ChatFllama extends BaseChatModel<ChatFllamaOptions> {
   }) async {
     final encoding = getEncoding(this.encoding);
     return encoding.encode(promptValue.toString());
-  }
-
-  @override
-  void close() {
-    // TODO: Somehow offload the model from RAM.
   }
 }

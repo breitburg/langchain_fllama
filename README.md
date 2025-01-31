@@ -9,8 +9,8 @@ A bridge between [Fllama](https://github.com/Telosnex/fllama/) (a [`llama.cpp`](
 - [x] Tool calling support
 - [ ] Tool results support *(right now the `ToolMessage` is not supported, you can't provide output for tool calls back to the models)*
 - [ ] The ability to offload the model from RAM when not in use
-- [ ] Support for multi-modal models
-- [ ] Output formatting support (e.g. output only in JSON)
+- [ ] Support for image inputs
+- [ ] Output formatting support (e.g. output only in JSON) *(right now can only be achieved through tool calling)*
 - [ ] Docstrings for all classes and methods
 
 ## Usage
@@ -25,6 +25,8 @@ final prompt = PromptValue.string('Write a story about llamas');
 final response = llm.invoke(prompt);
 
 print(response);
+
+// Output: A story about llamas...
 ```
 
 Or the chat version:
@@ -38,8 +40,8 @@ final prompt = ChatPromptValue([
     HumanChatMessage(
         content: ChatMessageContent.text('Remember the number 5123.'),
     ),
-    const AIChatMessage(
-        content: 'Okay, I will remember the number.',
+    AIChatMessage(
+        content: 'Sure, I will remember the number.',
     ),
     HumanChatMessage(
         content: ChatMessageContent.text('What is the number?'),
@@ -49,6 +51,47 @@ final prompt = ChatPromptValue([
 await for (final part in chat.stream(prompt)) {
     print(part);
 }
+
+// Output: The number is 5123.
+```
+
+Tool calling:
+
+```dart
+const weatherTool = ToolSpec(
+    name: 'get_current_weather',
+    description: 'Get the current weather in a given location',
+    inputJsonSchema: {
+    'type': 'object',
+    'properties': {
+        'location': {
+        'type': 'string',
+        'description': 'The city and state, e.g. San Francisco, CA',
+        },
+    },
+    'required': ['location'],
+    },
+);
+
+final chat = ChatFllama(
+    defaultOptions: ChatFllamaOptions(
+    model: modelPath,
+    // This will enforce the model to use the tool(s)
+    // It will not be able to output normal text, only tool calls
+    tools: const [weatherTool],
+    ),
+);
+
+final prompt =
+    PromptValue.string('What\'s the weather in Leuven, Belgium?');
+
+await for (final part in chat.stream(prompt)) {
+    for (final call in part.output.toolCalls) {
+        print('Tool call ${call.name} in ${call.arguments['location']}');
+    }
+}
+
+// Output: Tool call get_current_weather in Leuven, Belgium
 ```
 
 ## Installation

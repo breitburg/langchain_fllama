@@ -1,13 +1,10 @@
 import 'dart:async';
 
-import 'package:langchain_core/language_models.dart';
 import 'package:langchain_core/llms.dart';
 import 'package:langchain_core/prompts.dart';
 import 'package:langchain_fllama/langchain_fllama.dart';
-import 'package:langchain_fllama/src/chat_models/chat_models.dart';
 import 'package:langchain_fllama/src/streamed.dart';
 import 'package:langchain_tiktoken/langchain_tiktoken.dart';
-import 'package:uuid/uuid.dart';
 
 class Fllama extends BaseLLM<FllamaOptions> {
   Fllama({
@@ -26,24 +23,17 @@ class Fllama extends BaseLLM<FllamaOptions> {
   @override
   String get modelType => 'fllama';
 
-  /// A UUID generator.
-  late final Uuid _uuid = const Uuid();
-
   @override
   Future<LLMResult> invoke(
     final PromptValue input, {
     final FllamaOptions? options,
   }) async {
-    return LLMResult(
-      id: _uuid.v4(),
-      output: await fllamaToLangchainChatStream(
-        input.toChatMessages(),
-        options: ChatFllamaOptions.fromLLMOptions(options ?? defaultOptions),
-      ).join(),
-      finishReason: FinishReason.unspecified,
-      metadata: const {},
-      usage: const LanguageModelUsage(),
-    );
+    return await fllamaToLangchainChatStream(
+      input.toChatMessages(),
+      options: ChatFllamaOptions.fromLLMOptions(options ?? defaultOptions),
+    ).map((final result) => result.toLLMResult()).reduce(
+          (previousValue, element) => previousValue.concat(element),
+        );
   }
 
   @override
@@ -54,15 +44,7 @@ class Fllama extends BaseLLM<FllamaOptions> {
     return fllamaToLangchainChatStream(
       input.toChatMessages(),
       options: ChatFllamaOptions.fromLLMOptions(options ?? defaultOptions),
-    ).map(
-      (output) => LLMResult(
-        id: _uuid.v4(),
-        output: output,
-        finishReason: FinishReason.unspecified,
-        metadata: const {},
-        usage: const LanguageModelUsage(),
-      ),
-    );
+    ).map((final result) => result.toLLMResult());
   }
 
   /// Tokenizes the given prompt using tiktoken.
@@ -83,10 +65,5 @@ class Fllama extends BaseLLM<FllamaOptions> {
   }) async {
     final encoding = getEncoding(this.encoding);
     return encoding.encode(promptValue.toString());
-  }
-
-  @override
-  void close() {
-    // TODO: Somehow offload the model from RAM.
   }
 }
