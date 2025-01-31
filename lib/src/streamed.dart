@@ -64,8 +64,11 @@ Stream<ChatResult> fllamaToLangchainChatStream(List<ChatMessage> input,
 
   final requestId = await fllamaChat(request, (response, done) {
     if (done) controller.close();
+    if (controller.isClosed) return;
+
     final delta = response.substring(streamedText.length);
     streamedText = response;
+
     controller.add(delta);
   });
 

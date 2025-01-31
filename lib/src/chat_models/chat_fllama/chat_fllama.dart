@@ -28,12 +28,12 @@ class ChatFllama extends BaseChatModel<ChatFllamaOptions> {
     final PromptValue input, {
     final ChatFllamaOptions? options,
   }) async {
-    return await fllamaToLangchainChatStream(
+    final parts = await fllamaToLangchainChatStream(
       input.toChatMessages(),
       options: options ?? defaultOptions,
-    ).reduce(
-      (previousValue, element) => previousValue.concat(element),
-    );
+    ).toList();
+
+    return parts.reduce((a, b) => a.concat(b));
   }
 
   @override

@@ -4,7 +4,7 @@ A bridge between [Fllama](https://github.com/Telosnex/fllama/) (a [`llama.cpp`](
 
 ## Roadmap
 
-- [x] Use both the regular `Fllama` and `ChatFllama` versions within pipelines
+- [x] Use `ChatFllama` for chat-based models
 - [x] Run inference on-device with any `.gguf` model
 - [x] Tool calling support
 - [ ] Tool results support *(right now the `ToolMessage` is not supported, you can't provide output for tool calls back to the models)*
@@ -15,21 +15,7 @@ A bridge between [Fllama](https://github.com/Telosnex/fllama/) (a [`llama.cpp`](
 
 ## Usage
 
-You can use both the regular version:
-
-```dart
-final llm = Fllama(
-    defaultOptions: FllamaOptions(model: modelPath),
-);
-final prompt = PromptValue.string('Write a story about llamas');
-final response = llm.invoke(prompt);
-
-print(response);
-
-// Output: A story about llamas...
-```
-
-Or the chat version:
+You can use the chat version:
 
 ```dart
 final chat = ChatFllama(
@@ -55,7 +41,7 @@ await for (final part in chat.stream(prompt)) {
 // Output: The number is 5123.
 ```
 
-Tool calling:
+With tool calling:
 
 ```dart
 const weatherTool = ToolSpec(

@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:langchain_core/chat_models.dart';
 import 'package:langchain_core/tools.dart';
-import 'package:langchain_fllama/langchain_fllama.dart';
 
 /// {@template fllama_options}
 /// Options to pass into the Fllama LLM.
@@ -132,19 +131,5 @@ class ChatFllamaOptions extends ChatModelOptions {
         concurrencyLimit.hashCode ^
         toolChoice.hashCode ^
         tools.hashCode;
-  }
-
-  factory ChatFllamaOptions.fromLLMOptions(FllamaOptions options) {
-    return ChatFllamaOptions(
-      model: options.model,
-      mmproj: options.mmproj,
-      temperature: options.temperature,
-      maxTokens: options.maxTokens,
-      topP: options.topP,
-      frequencyPenalty: options.frequencyPenalty,
-      presencePenalty: options.presencePenalty,
-      numGpuLayers: options.numGpuLayers,
-      numCtx: options.numCtx,
-    );
   }
 }
