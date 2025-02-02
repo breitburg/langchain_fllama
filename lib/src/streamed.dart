@@ -57,11 +57,12 @@ Stream<ChatResult> fllamaToLangchainChatStream(List<ChatMessage> input,
     ],
   );
 
-  // Since fllamaInference gives us tokens directly,
+  // Since `fllamaInference` gives us tokens directly,
   // we can use a broadcast controller to emit them as they come
   final controller = StreamController<String>.broadcast();
   var streamedText = '';
 
+  // ignore: unused_local_variable
   final requestId = await fllamaChat(request, (response, done) {
     if (done) controller.close();
     if (controller.isClosed) return;
@@ -72,12 +73,17 @@ Stream<ChatResult> fllamaToLangchainChatStream(List<ChatMessage> input,
     controller.add(delta);
   });
 
-  // Cancel the request if the stream is closed
+  // TODO: Implement canceling inference
+  // Right now if you uncomment the line below, it will sometimes hang the thread with llama.cpp.
+  // Not sure why it happens, likely this should require fixing in the Fllama library.
   // controller.onCancel = () => fllamaCancelInference(requestId);
 
   yield* controller.stream.map((content) {
     final toolCalls = <AIChatMessageToolCall>[];
 
+    // TODO: This is a temporary solution to parse tool calls from the streamed text.
+    // It should be replaced with a more robust solution in the future, which relies on a special token
+    // emitted by the model when a tool is called. (e.g. `<tool_call>`). Must be handled within Fllama.
     try {
       final parsed = jsonDecode(streamedText) as Map<String, dynamic>;
 
@@ -96,12 +102,13 @@ Stream<ChatResult> fllamaToLangchainChatStream(List<ChatMessage> input,
           break;
         }
       }
+      // ignore: empty_catches
     } catch (e) {}
 
     return ChatResult(
       id: uuid.v4(),
       output: AIChatMessage(
-        content: content,
+        content: toolCalls.isEmpty ? content : '',
         toolCalls: toolCalls,
       ),
       finishReason: FinishReason.unspecified,
